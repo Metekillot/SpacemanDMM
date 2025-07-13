@@ -77,8 +77,8 @@ pub fn default_defines(defines: &mut DefineMap) {
         DM_BUILD = Int(DM_BUILD);
         SPACEMAN_DMM = Int(1);
 
-        FALSE = Bool([false]);
-        TRUE = Bool([true]);
+//        FALSE = Boolean(false);
+//        TRUE = Boolean(true);
 
         // eye and sight
         SEEINVIS = Int(2);
@@ -230,8 +230,8 @@ pub fn register_builtins(tree: &mut ObjectTreeBuilder) {
     }
     macro_rules! boolean {
         ($e:expr) => {
-            Constant::Bool::($e as bool)
-        }
+            Constant::Boolean($e as bool)
+        };
     }
     macro_rules! string {
         ($e:expr) => {
@@ -314,8 +314,8 @@ pub fn register_builtins(tree: &mut ObjectTreeBuilder) {
         var/const/TILED_ICON_MAP = int!(32768);
 
         #[dm_ref("/proc/if")] {
-            var/const/TRUE = int!(1);
-            var/const/FALSE = int!(0);
+            var/const/TRUE = boolean!(true);
+            var/const/FALSE = boolean!(false);
         }
 
         // enum /mob/var/gender

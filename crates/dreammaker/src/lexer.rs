@@ -265,7 +265,6 @@ pub enum Token {
     Float(f32),
     /// A documentation comment.
     DocComment(DocComment),
-    Bool([bool; 1]),
 }
 
 impl Token {
@@ -375,10 +374,6 @@ impl fmt::Display for Token {
             Int(i) => FormatFloat(i as f32).fmt(f),
             Float(i) => FormatFloat(i).fmt(f),
             DocComment(ref c) => c.fmt(f),
-            Bool(inner_bool) => match inner_bool[0] {
-                true => f.write_str("TRUE"),
-                false => f.write_str("FALSE"),
-            }
         }
     }
 }

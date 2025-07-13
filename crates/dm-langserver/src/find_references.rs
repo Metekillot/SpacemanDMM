@@ -418,6 +418,7 @@ impl<'o> WalkProc<'o> {
             Term::Float(_) => StaticType::None,
             Term::String(_) => StaticType::None,
             Term::Resource(_) => StaticType::None,
+            Term::Boolean(_) => StaticType::None,
             Term::As(_) => StaticType::None,
 
             Term::Expr(expr) => self.visit_expression(location, expr, type_hint),

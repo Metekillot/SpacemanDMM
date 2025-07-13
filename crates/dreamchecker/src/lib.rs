@@ -155,7 +155,7 @@ impl<'o> AssumptionSet<'o> {
             Constant::Float(val) => {
                 assumption_set![Assumption::IsNum(true), Assumption::Truthy(*val != 0.0)]
             }
-            Constant::Boolean(boolean) => assumption_set![Assumption::Truthy((*boolean)[0])],
+            Constant::Boolean(boolean) => assumption_set![Assumption::Truthy((*boolean))],
             Constant::List(_) => AssumptionSet::from_valid_instance(objtree.expect("/list")),
             Constant::Call(func, _) => match func {
                 ConstFn::Icon => AssumptionSet::from_valid_instance(objtree.expect("/icon")),
@@ -528,6 +528,8 @@ impl<'o> ProcDirective<'o> {
 pub fn directive_value_to_truthy(expr: &Expression, location: Location) -> Result<bool, DMError> {
     // Maybe this should be using constant evaluation, but for now accept TRUE and FALSE directly.
     match expr.as_term() {
+        Some(Term::Boolean(true)) => Ok(true),
+        Some(Term::Boolean(false)) => Ok(false),
         Some(Term::Int(0)) => Ok(false),
         Some(Term::Int(1)) => Ok(true),
         Some(Term::Ident(i)) if i == "FALSE" => Ok(false),
@@ -2265,6 +2267,11 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 self.objtree,
                 Constant::Resource(text.as_str().into()),
                 type_hint,
+            ),
+            Term::Boolean(inner_bool) => Analysis::from_value(
+                self.objtree,
+                Constant::Boolean(inner_bool.to_owned()),
+                type_hint
             ),
             Term::As(_) => assumption_set![Assumption::IsNum(true)].into(),
 
