@@ -1657,9 +1657,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                                 start: start_location,
                                 end: end_location,
                             },
-                            Annotation::ReturnValue {
-                                value: Term::from(expr.clone())
-                            },
+                            Annotation::ReturnValue,
                         )
                     }
                     None => {}
