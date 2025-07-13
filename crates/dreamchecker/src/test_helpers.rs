@@ -16,7 +16,7 @@ pub fn parse_a_file_for_test<S: Into<Cow<'static, str>>>(buffer: S) -> Context {
     parser.enable_procs();
     let tree = parser.parse_object_tree();
 
-    run_inner(&context, &tree, false);
+    run_inner(&context, &tree, false, None);
 
     context
 }

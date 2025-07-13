@@ -3,11 +3,13 @@
 #![allow(dead_code, unused_variables)]
 
 extern crate dreammaker as dm;
+use dm::annotation::{self, Annotation, AnnotationTree};
 use dm::ast::*;
 use dm::constants::{ConstFn, Constant};
 use dm::objtree::{ObjectTree, ProcRef, TypeRef};
 use dm::{Context, DMError, Location, Severity};
 
+use std::cell::{RefCell, RefMut};
 use std::collections::{BTreeMap, VecDeque};
 use foldhash::{HashMap, HashMapExt, HashSet, HashSetExt};
 
@@ -299,16 +301,16 @@ impl<'o> From<StaticType<'o>> for Analysis<'o> {
 // Entry points
 
 /// Run DreamChecker, registering diagnostics to the context.
-pub fn run(context: &Context, objtree: &ObjectTree) {
-    run_inner(context, objtree, false)
+pub fn run(context: &Context, objtree: &ObjectTree, annotation_tree: Option<&RefCell<AnnotationTree>>) {
+    run_inner(context, objtree, false, annotation_tree)
 }
 
 /// Run DreamChecker, registering diagnostics and printing progress to stdout.
-pub fn run_cli(context: &Context, objtree: &ObjectTree) {
-    run_inner(context, objtree, true)
+pub fn run_cli(context: &Context, objtree: &ObjectTree, annotation_tree: Option<&RefCell<AnnotationTree>>) {
+    run_inner(context, objtree, true, annotation_tree)
 }
 
-fn run_inner(context: &Context, objtree: &ObjectTree, cli: bool) {
+fn run_inner(context: &Context, objtree: &ObjectTree, cli: bool, annotation_tree: Option<&RefCell<AnnotationTree>>) {
     macro_rules! cli_println {
         ($($rest:tt)*) => {
             if cli { println!($($rest)*) }
@@ -337,7 +339,12 @@ fn run_inner(context: &Context, objtree: &ObjectTree, cli: bool) {
     objtree.root().recurse(&mut |ty| {
         for proc in ty.iter_self_procs() {
             if let Some(ref code) = proc.get().code {
-                analyzer.check_proc(proc, code);
+                if let Some(refcell) = annotation_tree {
+                    let mutable_annotation = refcell.borrow_mut();
+                    analyzer.check_proc(proc, code, Some(mutable_annotation));
+                } else {
+                analyzer.check_proc(proc, code, None);
+                }
             }
         }
     });
@@ -588,11 +595,11 @@ impl<'o> AnalyzeObjectTree<'o> {
     }
 
     /// Analyze a specific proc
-    pub fn check_proc(&mut self, proc: ProcRef<'o>, code: &'o [Spanned<Statement>]) {
+    pub fn check_proc(&mut self, proc: ProcRef<'o>, code: &'o [Spanned<Statement>], annotate_to: Option<RefMut<'o, AnnotationTree>>) {
         self.must_not_sleep.try_copy_from_parent(proc);
         self.must_be_pure.try_copy_from_parent(proc);
 
-        AnalyzeProc::new(self, self.context, self.objtree, proc).run(code)
+        AnalyzeProc::new(self, self.context, self.objtree, proc, annotate_to).run(code)
     }
 
     #[inline]
@@ -1138,10 +1145,11 @@ struct AnalyzeProc<'o, 's> {
     proc_ref: ProcRef<'o>,
     calls_parent: bool,
     inside_newcontext: u32,
+    annotate_to: Option<RefMut<'o, AnnotationTree>>,
 }
 
 impl<'o, 's> AnalyzeProc<'o, 's> {
-    fn new(env: &'s mut AnalyzeObjectTree<'o>, context: &'o Context, objtree: &'o ObjectTree, proc_ref: ProcRef<'o>) -> Self {
+    fn new(env: &'s mut AnalyzeObjectTree<'o>, context: &'o Context, objtree: &'o ObjectTree, proc_ref: ProcRef<'o>, annotate_to: Option<RefMut<'o, AnnotationTree>>) -> Self {
         let ty = proc_ref.ty();
 
         AnalyzeProc {
@@ -1152,6 +1160,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
             proc_ref,
             calls_parent: false,
             inside_newcontext: 0,
+            annotate_to,
         }
     }
 
@@ -1225,6 +1234,29 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
 
     fn visit_block(&mut self, block: &'o [Spanned<Statement>], local_vars: &mut HashMap<String, LocalVar<'o>>) -> ControlFlow {
         let mut term = ControlFlow::allfalse();
+        // copying code is ugly but this seems like the most legible way to do this
+        // without doing stupid tricks with closures
+        if self.annotate_to.is_some() {
+            for statement_pair in block.chunks(2) {
+            let stmt: &Spanned<Statement> = &statement_pair[0];
+            let next_stmt: Option<&Spanned<Statement>> = {
+                if statement_pair.len() == 1 {
+                    None
+                } else {
+                    Some(&statement_pair[1])
+                }
+            };
+
+            if term.terminates() {
+                error(stmt.location,"possible unreachable code here")
+                    .with_errortype("unreachable_code")
+                    .register(self.context);
+                return term // stop evaluating
+            }
+            let state = self.visit_statement(stmt.location, &stmt.elem, local_vars, next_stmt);
+            term.merge(state);
+        }}
+        else {
         for stmt in block.iter() {
             if term.terminates() {
                 error(stmt.location,"possible unreachable code here")
@@ -1232,9 +1264,9 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                     .register(self.context);
                 return term // stop evaluating
             }
-            let state = self.visit_statement(stmt.location, &stmt.elem, local_vars);
+            let state = self.visit_statement(stmt.location, &stmt.elem, local_vars, None);
             term.merge(state);
-        }
+        }}
         term
     }
 
@@ -1269,7 +1301,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
         }
     }
 
-    fn visit_statement(&mut self, location: Location, statement: &'o Statement, local_vars: &mut HashMap<String, LocalVar<'o>>) -> ControlFlow {
+    fn visit_statement(&mut self, location: Location, statement: &'o Statement, local_vars: &mut HashMap<String, LocalVar<'o>>, next_statement: Option<&Spanned<Statement>>) -> ControlFlow {
         match statement {
             Statement::Expr(expr) => {
                 match expr {
@@ -1393,7 +1425,8 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
             Statement::ForLoop { init, test, inc, block } => {
                 let mut scoped_locals = local_vars.clone();
                 if let Some(init) = init {
-                    self.visit_statement(location, init, &mut scoped_locals);
+                    // no need to track the next statement for an init condition
+                    self.visit_statement(location, init, &mut scoped_locals, None);
                 }
                 if let Some(test) = test {
                     self.loop_condition_check(location, test);
@@ -1401,7 +1434,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                     self.visit_expression(location, test, None, &mut scoped_locals);
                 }
                 if let Some(inc) = inc {
-                    self.visit_statement(location, inc, &mut scoped_locals);
+                    self.visit_statement(location, inc, &mut scoped_locals, None);
                 }
                 let mut state = self.visit_block(block, &mut scoped_locals);
                 state.end_loop();
