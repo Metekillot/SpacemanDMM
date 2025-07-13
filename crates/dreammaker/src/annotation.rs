@@ -3,6 +3,7 @@
 
 use std::rc::Rc;
 
+use crate::constants::Constant;
 use crate::docs::DocCollection;
 use interval_tree::{range, IntervalTree, RangeInclusive, RangePairIter};
 
@@ -49,7 +50,7 @@ pub enum Annotation {
 
     ProcArguments(Vec<Ident>, String, usize),  // Vec empty for unscoped call
     ProcArgument(usize),  // where in the prog arguments we are
-    
+    ReturnStatement{value: Option<Constant>},
 }
 
 #[derive(Debug)]
