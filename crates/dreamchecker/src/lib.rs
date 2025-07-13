@@ -1645,53 +1645,18 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 let return_type = self.visit_expression(location, expr, None, local_vars);
                 match annotate_to {
                     Some(refcell) => {
-                        let end_location: Location;
-                        {
-                            //scope to drop this borrow after we do what we need with it
-                            let annotation_tree: Ref<'_, AnnotationTree> = refcell.borrow();
-
-                            end_location = {
-                                if let Some(following_statement) = next_statement {
-                                    following_statement.location.pred()
-                                } else {
-                                    let proc_body_bounds =
-                                        annotation_tree.get_location(self.proc_ref.location);
-                                    let mut proc_end_bound: Location = Location::default();
-                                    for (location_range, annotation_ref) in proc_body_bounds {
-                                        match annotation_ref {
-                                            Annotation::ProcBody(body, index) => {
-                                                let proc_name = body.join("/");
-                                                if proc_name == self.proc_ref.name() {
-                                                    proc_end_bound = location_range.end;
-                                                    break;
-                                                }
-                                            }
-                                            _ => {}
-                                        }
-                                    }
-                                    proc_end_bound
+                        let start_location = location;
+                        let end_location = {
+                            match next_statement {
+                                Some(statement) => statement.location.pred(),
+                                None => {
+                                    self.proc_ref.body_range.clone().unwrap().end
                                 }
-                            };
-                        }
-                        {
-                            let mut annotation_tree: RefMut<'_, AnnotationTree> = refcell.borrow_mut();
-                            annotation_tree.insert(
-                                Range {
-                                    start: location,
-                                    end: end_location,
-                                },
-                                dm::annotation::Annotation::ReturnStatement {
-                                    value: {
-                                        match &return_type.value {
-                                            Some(value) => Some(value.to_owned()),
-                                            None => None,
-                                        }
-                                    },
-                                },
-                            );
-                        }
-                    }
-                    None => {}
+                            }
+                        };
+                    refcell.borrow_mut().insert(Range{start: start_location, end: end_location}, Annotation::ReturnValue { value: expr.clone() })
+                }
+                None => {},
                 }
 
                 local_vars.get_mut(".").unwrap().analysis = return_type;
