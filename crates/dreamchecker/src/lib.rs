@@ -1658,12 +1658,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                                 end: end_location,
                             },
                             Annotation::ReturnValue {
-                                value: {
-                                    match expr.nameof() {
-                                        Some(str_slice) => str_slice.to_string(),
-                                        None => "nothing".to_string(),
-                                    }
-                                },
+                                value: Term::from(expr.clone())
                             },
                         )
                     }
