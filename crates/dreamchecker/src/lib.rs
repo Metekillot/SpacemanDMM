@@ -1654,7 +1654,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                                 }
                             }
                         };
-                    refcell.borrow_mut().insert(Range{start: start_location, end: end_location}, Annotation::ReturnValue { value: expr.clone() })
+                    refcell.borrow_mut().insert(Range{start: start_location, end: end_location}, Annotation::ReturnValue { value: expr.as_term().unwrap().clone() })
                 }
                 None => {},
                 }
