@@ -1729,9 +1729,13 @@ impl<'ctx, 'an, 'inp> Parser<'ctx, 'an, 'inp> {
         } else if let Some(()) = self.exact_ident("return")? {
             // statement :: 'return' ';'
             // statement :: 'return' expression ';'
-            self.annotate(self.location(), ||Annotation::ReturnStatement);
+            let marked_location = self.location();
             let expression: Option<Expression> = self.expression()?;
-            self.annotate(self.location, ||Annotation::ReturnValue { value: expression.clone() });
+            self.annotate(self.location(), ||Annotation::ReturnStatement{ returned_value: match expression.clone() {
+                Some(express) => express.simple_evaluate(marked_location).ok(),
+                None => None,
+            } });
+
 
             success(Statement::Return(expression))
         } else if let Some(()) = self.exact_ident("CRASH")? {

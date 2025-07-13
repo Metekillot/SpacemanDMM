@@ -50,8 +50,7 @@ pub enum Annotation {
 
     ProcArguments(Vec<Ident>, String, usize),  // Vec empty for unscoped call
     ProcArgument(usize),  // where in the prog arguments we are
-    ReturnStatement,
-    ReturnValue{ value: Option<Expression>},
+    ReturnStatement{ returned_value: Option<Constant> }
 }
 
 #[derive(Debug)]
