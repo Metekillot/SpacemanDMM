@@ -1649,14 +1649,25 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                         let end_location = {
                             match next_statement {
                                 Some(statement) => statement.location.pred(),
-                                None => {
-                                    self.proc_ref.body_range.clone().unwrap().end
-                                }
+                                None => self.proc_ref.body_range.clone().unwrap().end,
                             }
                         };
-                    refcell.borrow_mut().insert(Range{start: start_location, end: end_location}, Annotation::ReturnValue { value: expr.as_term().unwrap().clone() })
-                }
-                None => {},
+                        refcell.borrow_mut().insert(
+                            Range {
+                                start: start_location,
+                                end: end_location,
+                            },
+                            Annotation::ReturnValue {
+                                value: {
+                                    match expr.nameof() {
+                                        Some(str_slice) => str_slice.to_string(),
+                                        None => "nothing".to_string(),
+                                    }
+                                },
+                            },
+                        )
+                    }
+                    None => {}
                 }
 
                 local_vars.get_mut(".").unwrap().analysis = return_type;
