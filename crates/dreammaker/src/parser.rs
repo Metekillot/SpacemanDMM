@@ -5,6 +5,9 @@ use std::collections::{BTreeMap, VecDeque};
 use std::ops::Range;
 use std::str::FromStr;
 
+use crate::constants::preprocessor_evaluate;
+use crate::preprocessor::DefineMap;
+
 use super::annotation::*;
 use super::ast::*;
 use super::docs::*;
@@ -1732,7 +1735,7 @@ impl<'ctx, 'an, 'inp> Parser<'ctx, 'an, 'inp> {
             let marked_location = self.location();
             let expression: Option<Expression> = self.expression()?;
             self.annotate(self.location(), ||Annotation::ReturnStatement{ returned_value: match expression.clone() {
-                Some(express) => express.simple_evaluate(marked_location).ok(),
+                Some(express) => preprocessor_evaluate(marked_location, express, &DefineMap::with_builtins(), Some(self.context)).ok(),
                 None => None,
             } });
 
