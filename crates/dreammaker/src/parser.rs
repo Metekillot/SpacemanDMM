@@ -1734,7 +1734,7 @@ impl<'ctx, 'an, 'inp> Parser<'ctx, 'an, 'inp> {
             // statement :: 'return' expression ';'
             let marked_location = self.location();
             let expression: Option<Expression> = self.expression()?;
-            self.annotate(self.location(), ||Annotation::ReturnStatement{ returned_value: match expression.clone() {
+            self.annotate(marked_location, ||Annotation::ReturnStatement{ returned_value: match expression.clone() {
                 Some(express) => preprocessor_evaluate(marked_location, express, &DefineMap::with_builtins(), Some(self.context)).ok(),
                 None => None,
             } });

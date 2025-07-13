@@ -77,8 +77,8 @@ pub fn default_defines(defines: &mut DefineMap) {
         DM_BUILD = Int(DM_BUILD);
         SPACEMAN_DMM = Int(1);
 
-        FALSE = Int(0);
-        TRUE = Int(1);
+        FALSE = Bool(false);
+        TRUE = Bool(true);
 
         // eye and sight
         SEEINVIS = Int(2);
@@ -227,6 +227,11 @@ pub fn register_builtins(tree: &mut ObjectTreeBuilder) {
         ($e:expr) => {
             Constant::Float($e as f32)
         };
+    }
+    macro_rules! boolean {
+        ($e:expr) => {
+            Constant::Bool::($e as bool)
+        }
     }
     macro_rules! string {
         ($e:expr) => {
