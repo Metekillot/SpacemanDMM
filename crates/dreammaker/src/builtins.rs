@@ -77,8 +77,8 @@ pub fn default_defines(defines: &mut DefineMap) {
         DM_BUILD = Int(DM_BUILD);
         SPACEMAN_DMM = Int(1);
 
-        FALSE = Bool(false);
-        TRUE = Bool(true);
+        FALSE = Bool([false]);
+        TRUE = Bool([true]);
 
         // eye and sight
         SEEINVIS = Int(2);

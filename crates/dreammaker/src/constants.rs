@@ -91,7 +91,7 @@ pub enum Constant {
     Resource(Ident2),
     /// A floating-point (or integer) literal, following BYOND's rules.
     Float(f32),
-    Boolean(bool),
+    Boolean([bool; 1]),
 }
 
 impl Constant {
@@ -338,7 +338,7 @@ impl fmt::Display for Constant {
         match *self {
             Constant::Null(_) => f.write_str("null"),
             Constant::Boolean(boolean) => {
-                if boolean {
+                if boolean[0] {
                     f.write_str("TRUE")
                 } else {
                     f.write_str("FALSE")
