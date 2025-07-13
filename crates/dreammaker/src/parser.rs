@@ -1729,7 +1729,10 @@ impl<'ctx, 'an, 'inp> Parser<'ctx, 'an, 'inp> {
         } else if let Some(()) = self.exact_ident("return")? {
             // statement :: 'return' ';'
             // statement :: 'return' expression ';'
+            let return_invocation = self.updated_location();
             let expression = self.expression()?;
+            self.annotate(return_invocation, || Annotation::ReturnStatement{value: expression.clone()});
+
             success(Statement::Return(expression))
         } else if let Some(()) = self.exact_ident("CRASH")? {
             // statement :: 'CRASH' '(' ')'

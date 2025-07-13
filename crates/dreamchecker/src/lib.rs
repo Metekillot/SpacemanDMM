@@ -1643,26 +1643,6 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                         .register(self.context);
                 }
                 let return_type = self.visit_expression(location, expr, None, local_vars);
-                match annotate_to {
-                    Some(refcell) => {
-                        let start_location = location;
-                        let end_location = {
-                            match next_statement {
-                                Some(statement) => statement.location.pred(),
-                                None => self.proc_ref.body_range.clone().unwrap().end,
-                            }
-                        };
-                        refcell.borrow_mut().insert(
-                            Range {
-                                start: start_location,
-                                end: end_location,
-                            },
-                            Annotation::ReturnValue,
-                        )
-                    }
-                    None => {}
-                }
-
                 local_vars.get_mut(".").unwrap().analysis = return_type;
                 return ControlFlow {
                     returns: true,
