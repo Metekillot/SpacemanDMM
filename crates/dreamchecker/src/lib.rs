@@ -334,28 +334,28 @@ impl<'o> From<StaticType<'o>> for Analysis<'o> {
 
 /// Run DreamChecker, registering diagnostics to the context.
 pub fn run(
-    context: &'static Context,
-    objtree: &'static ObjectTree,
-    annotation_tree: Option<&'static RefCell<AnnotationTree>>,
+    context: &Context,
+    objtree: &ObjectTree,
+    annotation_tree: Option<&RefCell<AnnotationTree>>,
 ) {
-    run_inner(context, objtree, false, annotation_tree);
+    run_inner(context, objtree, false, annotation_tree)
 }
 
 /// Run DreamChecker, registering diagnostics and printing progress to stdout.
 pub fn run_cli(
-    context: &'static Context,
-    objtree: &'static ObjectTree,
-    annotation_tree: Option<&'static RefCell<AnnotationTree>>,
+    context: &Context,
+    objtree: &ObjectTree,
+    annotation_tree: Option<&RefCell<AnnotationTree>>,
 ) {
-    run_inner(context, objtree, true, annotation_tree);
+    run_inner(context, objtree, true, annotation_tree)
 }
 
-fn run_inner<'o>(
-    context: &'static Context,
-    objtree: &'static ObjectTree,
+fn run_inner(
+    context: &Context,
+    objtree: &ObjectTree,
     cli: bool,
-    annotation_tree: Option<&'static RefCell<AnnotationTree>>,
-) -> AnalyzeObjectTree<'o> {
+    annotation_tree: Option<&RefCell<AnnotationTree>>,
+) {
     macro_rules! cli_println {
         ($($rest:tt)*) => {
             if cli { println!($($rest)*) }
@@ -407,24 +407,22 @@ fn run_inner<'o>(
     cli_println!("============================================================");
     cli_println!("Analyzing proc call tree...\n");
     analyzer.check_proc_call_tree();
-    analyzer
 }
 
 // ----------------------------------------------------------------------------
 // Analysis environment
-#[derive(Clone)]
+
 struct BadOverride {
     missing: Vec<String>,
     location: Location,
 }
 
-#[derive(Clone)]
 struct CalledAt {
     location: Location,
     others: u32,
 }
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 struct KwargInfo {
     location: Location,
     // kwarg name -> location that the proc is called with that arg
@@ -434,7 +432,6 @@ struct KwargInfo {
 }
 
 /// Struct for SpacemanDMM_* directives
-#[derive(Clone)]
 struct ProcDirective<'o> {
     directive: HashMap<ProcRef<'o>, (bool, Location)>,
     can_be_disabled: bool,
@@ -583,7 +580,7 @@ impl DMErrorExt for DMError {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct ViolatingProcs<'o> {
     violators: HashMap<ProcRef<'o>, Vec<(String, Location)>>,
 }
@@ -601,7 +598,7 @@ impl<'o> ViolatingProcs<'o> {
     }
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Default, Debug)]
 pub struct ViolatingOverrides<'o> {
     overrides: HashMap<ProcRef<'o>, Vec<ProcRef<'o>>>,
 }
@@ -617,7 +614,6 @@ impl<'o> ViolatingOverrides<'o> {
 }
 
 /// A deeper analysis of an ObjectTree
-#[derive(Clone)]
 pub struct AnalyzeObjectTree<'o> {
     context: &'o Context,
     objtree: &'o ObjectTree,
