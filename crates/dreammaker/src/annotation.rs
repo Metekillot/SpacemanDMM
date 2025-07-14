@@ -5,13 +5,14 @@ use std::rc::Rc;
 
 use crate::docs::DocCollection;
 use interval_tree::{range, IntervalTree, RangeInclusive, RangePairIter};
+use serde::Serialize;
 
 use super::ast::*;
 use super::Location;
 
 pub type Iter<'a> = RangePairIter<'a, Location, Annotation>;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum Annotation {
     // contextual information
     TreeBlock(Vec<Ident>),

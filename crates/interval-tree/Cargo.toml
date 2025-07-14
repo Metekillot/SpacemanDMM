@@ -10,3 +10,6 @@ edition = "2021"
 
 [dev-dependencies]
 rand = "0.8.5"
+
+[dependencies]
+serde = { version = "1.0.219", features = ["derive"] }

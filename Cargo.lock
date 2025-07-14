@@ -947,6 +947,7 @@ name = "interval-tree"
 version = "0.8.0"
 dependencies = [
  "rand",
+ "serde",
 ]
 
 [[package]]

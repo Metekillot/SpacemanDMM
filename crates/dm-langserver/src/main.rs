@@ -510,7 +510,7 @@ impl Engine {
             let related_info = self.client_caps.related_info;
             let diagnostics_tracker = self.diagnostics_tracker.clone();
             std::thread::spawn(move || {
-                dreamchecker::run(&context, &objtree);
+                dreamchecker::run(&context, &objtree, None);
                 let elapsed = start.elapsed(); start += elapsed;
                 eprint!("dreamchecker {}.{:03}s", elapsed.as_secs(), elapsed.subsec_millis());
                 print_thread_total();
@@ -617,7 +617,7 @@ impl Engine {
                         self.objtree = Arc::new(parser.parse_object_tree());
                     }
                     pp.finalize();
-                    dreamchecker::run(&self.context, &self.objtree);
+                    dreamchecker::run(&self.context, &self.objtree, None);
 
                     // Perform a diagnostics pump on this file only.
                     // Assume all errors are in this file.

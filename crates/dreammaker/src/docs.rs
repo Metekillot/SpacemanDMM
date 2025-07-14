@@ -4,9 +4,10 @@ use std::fmt;
 
 use get_size::GetSize;
 use get_size_derive::GetSize;
+use serde::Serialize;
 
 /// A collection of documentation comments targeting the same item.
-#[derive(Default, Clone, Debug, PartialEq, GetSize)]
+#[derive(Default, Clone, Debug, PartialEq, GetSize, Serialize)]
 pub struct DocCollection {
     elems: Vec<DocComment>,
     pub builtin_docs: BuiltinDocs,
@@ -78,6 +79,14 @@ pub struct DocComment {
     pub kind: CommentKind,
     pub target: DocTarget,
     pub text: String,
+}
+
+impl Serialize for DocComment {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        serializer.serialize_str(format!("{}", self).as_str())
+    }
 }
 
 impl DocComment {
@@ -229,7 +238,7 @@ pub enum DocTarget {
 }
 
 /// Information about where builtin docs can be found.
-#[derive(Clone, Debug, PartialEq, GetSize)]
+#[derive(Clone, Debug, PartialEq, GetSize, Serialize)]
 #[derive(Default)]
 pub enum BuiltinDocs {
     #[default]

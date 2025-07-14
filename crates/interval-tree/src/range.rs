@@ -1,4 +1,6 @@
-#[derive(Clone, PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Copy)]
+use serde::Serialize;
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Copy, Serialize)]
 /// A range bounded inclusively below and above (`start..=end`).
 ///
 /// The `RangeInclusive` `start..=end` contains all values with `x >= start`

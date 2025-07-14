@@ -7,6 +7,7 @@ use std::iter::FromIterator;
 use get_size::GetSize;
 use get_size_derive::GetSize;
 use phf::phf_map;
+use serde::Serialize;
 
 use crate::error::Location;
 
@@ -89,6 +90,15 @@ pub enum PathOp {
     Dot,
     /// `:` for unchecked relative pathing.
     Colon,
+}
+
+impl Serialize for PathOp {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        let mut s = serializer.serialize_str(self.name());
+        s
+    }
 }
 
 impl PathOp {
@@ -1254,6 +1264,14 @@ pub struct VarType {
     pub flags: VarTypeFlags,
     pub type_path: TreePath,
     pub input_type: InputType,
+}
+
+impl Serialize for VarType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        serializer.serialize_str(format!("{}", self).as_str())
+    }
 }
 
 impl VarType {

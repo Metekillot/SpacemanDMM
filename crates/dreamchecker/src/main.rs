@@ -1,10 +1,9 @@
 //! DreamChecker, a robust static analysis and typechecking engine for
 //! DreamMaker.
 
-extern crate dreamchecker;
-extern crate dreammaker as dm;
+use dm::*;
 #[macro_use]
-extern crate serde_json;
+use serde_json::json;
 
 // ----------------------------------------------------------------------------
 // Command-line interface
@@ -67,7 +66,7 @@ fn main() {
     let (fatal_errored, tree) = parser.parse_object_tree_2();
 
     if !parse_only && !fatal_errored {
-        dreamchecker::run_cli(&context, &tree);
+        dreamchecker::run_cli(&context, &tree, None);
     }
 
     println!("============================================================");

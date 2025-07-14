@@ -2,17 +2,20 @@
 //! DreamMaker.
 #![allow(dead_code, unused_variables)]
 
-use dreammaker as dm;
 use dm::ast::*;
 use dm::constants::{ConstFn, Constant};
 use dm::objtree::{ObjectTree, ProcRef, TypeRef};
 use dm::{Context, DMError, Location, Severity};
+use dm::annotation::{Annotation, AnnotationTree};
 
 use foldhash::{HashMap, HashMapExt, HashSet, HashSetExt};
 use ron::ser::PrettyConfig;
 use serde::ser::SerializeStruct;
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::{BTreeMap, VecDeque};
+use std::io::Write;
+use std::path::PathBuf;
+use std::str::FromStr;
 
 use serde::Serialize;
 
@@ -300,20 +303,21 @@ impl<'o> From<StaticType<'o>> for Analysis<'o> {
     }
 }
 
+
 // ----------------------------------------------------------------------------
 // Entry points
 
 /// Run DreamChecker, registering diagnostics to the context.
-pub fn run(context: &Context, objtree: &ObjectTree) {
-    run_inner(context, objtree, false)
+pub fn run(context: &Context, objtree: &ObjectTree, annotate_to: Option<&RefCell<AnnotationTree>>) {
+    run_inner(context, objtree, false, annotate_to)
 }
 
 /// Run DreamChecker, registering diagnostics and printing progress to stdout.
-pub fn run_cli(context: &Context, objtree: &ObjectTree) {
-    run_inner(context, objtree, true)
+pub fn run_cli(context: &Context, objtree: &ObjectTree, annotate_to: Option<&RefCell<AnnotationTree>>) {
+    run_inner(context, objtree, true, annotate_to)
 }
 
-fn run_inner(context: &Context, objtree: &ObjectTree, cli: bool) {
+fn run_inner(context: &Context, objtree: &ObjectTree, cli: bool, annotate_to: Option<&RefCell<AnnotationTree>>) {
     macro_rules! cli_println {
         ($($rest:tt)*) => {
             if cli { println!($($rest)*) }
@@ -342,7 +346,7 @@ fn run_inner(context: &Context, objtree: &ObjectTree, cli: bool) {
     objtree.root().recurse(&mut |ty| {
         for proc in ty.iter_self_procs() {
             if let Some(ref code) = proc.get().code {
-                analyzer.check_proc(proc, code);
+                analyzer.check_proc(proc, code, annotate_to);
             }
         }
     });
@@ -355,13 +359,35 @@ fn run_inner(context: &Context, objtree: &ObjectTree, cli: bool) {
             analyzer.propagate_violations(proc);
         }
     });
-
     analyzer.finish_check_kwargs();
 
     cli_println!("============================================================");
     cli_println!("Analyzing proc call tree...\n");
     analyzer.check_proc_call_tree();
-    print!("{}", ron::ser::to_string_pretty(&analyzer, PrettyConfig::new()).unwrap());
+
+}
+
+pub fn serialize_to_files(context: &Context, objtree: &ObjectTree, annotate_to: Option<&RefCell<AnnotationTree>>) -> std::io::Result<()> {
+    check_var_defs(objtree, context);
+    let mut analyzer = AnalyzeObjectTree::new(context, objtree);
+    objtree.root().recurse(&mut |ty| {
+        for proc in ty.iter_self_procs() {
+            if let Some(ref code) = proc.get().code {
+                analyzer.gather_settings(proc, code);
+            }
+        }
+    });
+    objtree.root().recurse(&mut |ty| {
+        for proc in ty.iter_self_procs() {
+            if let Some(ref code) = proc.get().code {
+                analyzer.check_proc(proc, code, annotate_to);
+            }
+        }
+    });
+    analyzer.finish_check_kwargs();
+    analyzer.check_proc_call_tree();
+    let proc_returns = &analyzer.return_type;
+    Ok(())
 }
 
 // ----------------------------------------------------------------------------
@@ -605,11 +631,11 @@ impl<'o> AnalyzeObjectTree<'o> {
     }
 
     /// Analyze a specific proc
-    pub fn check_proc(&mut self, proc: ProcRef<'o>, code: &'o [Spanned<Statement>]) {
+    pub fn check_proc(&mut self, proc: ProcRef<'o>, code: &'o [Spanned<Statement>], annotate_to: Option<&RefCell<AnnotationTree>>) {
         self.must_not_sleep.try_copy_from_parent(proc);
         self.must_be_pure.try_copy_from_parent(proc);
 
-        AnalyzeProc::new(self, self.context, self.objtree, proc).run(code)
+        AnalyzeProc::new(self, self.context, self.objtree, proc).run(code, annotate_to)
     }
 
     #[inline]
@@ -1172,7 +1198,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
         }
     }
 
-    pub fn run(&mut self, block: &'o [Spanned<Statement>]) {
+    pub fn run(&mut self, block: &'o [Spanned<Statement>], annotate_to: Option<&RefCell<AnnotationTree>>) {
         let mut local_vars = HashMap::<String, LocalVar>::new();
         local_vars.insert(".".to_owned(), Analysis::empty().into());
         local_vars.insert("args".to_owned(), Analysis::from_static_type_impure(self.objtree.expect("/list")).into());
@@ -1200,7 +1226,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
             //println!("adding parameters {:#?}", self.local_vars);
         }
 
-        self.visit_block(block, &mut local_vars, true);
+        self.visit_block(block, &mut local_vars, true, annotate_to);
 
         //println!("purity {}", self.is_pure);
 
@@ -1240,7 +1266,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
         }
     }
 
-    fn visit_block(&mut self, block: &'o [Spanned<Statement>], local_vars: &mut HashMap<String, LocalVar<'o>>, mut setting_allowed : bool) -> ControlFlow {
+    fn visit_block(&mut self, block: &'o [Spanned<Statement>], local_vars: &mut HashMap<String, LocalVar<'o>>, mut setting_allowed : bool, annotate_to: Option<&RefCell<AnnotationTree>>) -> ControlFlow {
         let mut term = ControlFlow::allfalse();
         for stmt in block.iter() {
             if term.terminates() {
@@ -1263,7 +1289,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                     setting_allowed = false;
                 }
             }
-            let state = self.visit_statement(stmt.location, &stmt.elem, local_vars);
+            let state = self.visit_statement(stmt.location, &stmt.elem, local_vars, annotate_to);
             term.merge(state);
         }
         term
@@ -1300,7 +1326,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
         }
     }
 
-    fn visit_statement(&mut self, location: Location, statement: &'o Statement, local_vars: &mut HashMap<String, LocalVar<'o>>) -> ControlFlow {
+    fn visit_statement(&mut self, location: Location, statement: &'o Statement, local_vars: &mut HashMap<String, LocalVar<'o>>, annotate_to: Option<&RefCell<AnnotationTree>>) -> ControlFlow {
         match statement {
             Statement::Expr(expr) => {
                 match expr {
@@ -1352,13 +1378,13 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 let mut scoped_locals = local_vars.clone();
                 // We don't check for static/determine conditions because while(TRUE) is so common.
                 self.visit_expression(location, condition, None, &mut scoped_locals);
-                let mut state = self.visit_block(block, &mut scoped_locals, false);
+                let mut state = self.visit_block(block, &mut scoped_locals, false, annotate_to);
                 state.end_loop();
                 return state
             },
             Statement::DoWhile { block, condition } => {
                 let mut scoped_locals = local_vars.clone();
-                let mut state = self.visit_block(block, &mut scoped_locals, false);
+                let mut state = self.visit_block(block, &mut scoped_locals, false, annotate_to);
                 if state.terminates_loop() {
                     error(location,"do while terminates without ever reaching condition")
                         .register(self.context);
@@ -1372,7 +1398,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
             Statement::If { arms, else_arm } => {
                 let mut allterm = ControlFlow::alltrue();
                 let mut alwaystrue = false;
-                for (condition, ref block) in arms.iter() {
+                for (condition, block) in arms.iter() {
                     let mut scoped_locals = local_vars.clone();
                     self.visit_control_condition(condition.location, &condition.elem);
                     if alwaystrue {
@@ -1381,7 +1407,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                             .register(self.context);
                     }
                     self.visit_expression(condition.location, &condition.elem, None, &mut scoped_locals);
-                    let state = self.visit_block(block, &mut scoped_locals, false);
+                    let state = self.visit_block(block, &mut scoped_locals, false, annotate_to);
                     match condition.elem.is_truthy() {
                         Some(true) => {
                             error(condition.location,"if condition is always true")
@@ -1406,7 +1432,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                                 .register(self.context);
                         }
                     }
-                    let state = self.visit_block(else_arm, &mut local_vars.clone(), false);
+                    let state = self.visit_block(else_arm, &mut local_vars.clone(), false, annotate_to);
                     allterm.merge_false(state);
                 } else {
                     allterm.no_else();
@@ -1417,14 +1443,14 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
             },
             Statement::ForInfinite { block } => {
                 let mut scoped_locals = local_vars.clone();
-                let mut state = self.visit_block(block, &mut scoped_locals, false);
+                let mut state = self.visit_block(block, &mut scoped_locals, false, annotate_to);
                 state.end_loop();
                 return state
             }
             Statement::ForLoop { init, test, inc, block } => {
                 let mut scoped_locals = local_vars.clone();
                 if let Some(init) = init {
-                    self.visit_statement(location, init, &mut scoped_locals);
+                    self.visit_statement(location, init, &mut scoped_locals, annotate_to);
                 }
                 if let Some(test) = test {
                     self.loop_condition_check(location, test);
@@ -1432,9 +1458,9 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                     self.visit_expression(location, test, None, &mut scoped_locals);
                 }
                 if let Some(inc) = inc {
-                    self.visit_statement(location, inc, &mut scoped_locals);
+                    self.visit_statement(location, inc, &mut scoped_locals, annotate_to);
                 }
-                let mut state = self.visit_block(block, &mut scoped_locals, false);
+                let mut state = self.visit_block(block, &mut scoped_locals, false, annotate_to);
                 state.end_loop();
                 return state
             },
@@ -1473,7 +1499,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 if let Some(var_type) = var_type {
                     self.visit_var(location, var_type, name, None, &mut scoped_locals);
                 }
-                let mut state = self.visit_block(block, &mut scoped_locals, false);
+                let mut state = self.visit_block(block, &mut scoped_locals, false, annotate_to);
                 state.end_loop();
                 return state
             },
@@ -1487,7 +1513,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 if let Some(var_type) = var_type {
                     self.visit_var(location, var_type, name, Some(start), &mut scoped_locals);
                 }
-                let mut state = self.visit_block(block, &mut scoped_locals, false);
+                let mut state = self.visit_block(block, &mut scoped_locals, false, annotate_to);
                 if let Some(startterm) = start.as_term() {
                     if let Some(endterm) = end.as_term() {
                         if let Some(validity) = startterm.valid_for_range(endterm, step.as_ref()) {
@@ -1528,7 +1554,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 if let Some(delay) = delay {
                     self.visit_expression(location, delay, None, &mut scoped_locals);
                 }
-                self.visit_block(block, &mut scoped_locals, false);
+                self.visit_block(block, &mut scoped_locals, false, annotate_to);
                 self.inside_newcontext = self.inside_newcontext.wrapping_sub(1);
             },
             Statement::Switch { input, cases, default } => {
@@ -1536,7 +1562,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 let mut allterm = ControlFlow::alltrue();
                 self.visit_control_condition(location, input);
                 self.visit_expression(location, input, None, local_vars);
-                for (case, ref block) in cases.iter() {
+                for (case, block) in cases.iter() {
                     let mut scoped_locals = local_vars.clone();
                     if let [dm::ast::Case::Exact(Expression::BinaryOp{op: BinaryOp::Or, ..})] = case.elem[..] {
                         error(case.location, "Elements in a switch-case branch separated by ||, this is likely in error and should be replaced by a comma")
@@ -1552,11 +1578,11 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                             }
                         }
                     }
-                    let state = self.visit_block(block, &mut scoped_locals, false);
+                    let state = self.visit_block(block, &mut scoped_locals, false, annotate_to);
                     allterm.merge_false(state);
                 }
                 if let Some(default) = default {
-                    let state = self.visit_block(default, &mut local_vars.clone(), false);
+                    let state = self.visit_block(default, &mut local_vars.clone(), false, annotate_to);
                     allterm.merge_false(state);
                 } else {
                     allterm.no_else();
@@ -1566,7 +1592,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 return allterm
             },
             Statement::TryCatch { try_block, catch_params, catch_block } => {
-                self.visit_block(try_block, &mut local_vars.clone(), false);
+                self.visit_block(try_block, &mut local_vars.clone(), false, annotate_to);
                 if catch_params.len() > 1 {
                     error(location, format!("Expected 0 or 1 catch parameters, got {}", catch_params.len()))
                         .set_severity(Severity::Warning)
@@ -1585,12 +1611,12 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                     let var_type: VarType = type_path.iter().map(ToOwned::to_owned).collect();
                     self.visit_var(location, &var_type, var_name, None, &mut catch_locals);
                 }
-                self.visit_block(catch_block, &mut catch_locals, false);
+                self.visit_block(catch_block, &mut catch_locals, false, annotate_to);
             },
             Statement::Continue(_) => { return ControlFlow { returns: false, continues: true, breaks: false, fuzzy: true } },
             Statement::Break(_) => { return ControlFlow { returns: false, continues: false, breaks: true, fuzzy: true } },
             Statement::Goto(_) => {},
-            Statement::Label { name: _, block } => { self.visit_block(block, &mut local_vars.clone(), false); },
+            Statement::Label { name: _, block } => { self.visit_block(block, &mut local_vars.clone(), false, annotate_to); },
             Statement::Del(expr) => { self.visit_expression(location, expr, None, local_vars); },
         }
         ControlFlow::allfalse()
@@ -1791,7 +1817,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 }
             },
             Term::InterpString(_, parts) => {
-                for (ref expr, _) in parts.iter() {
+                for (expr, _) in parts.iter() {
                     if let Some(expr) = expr {
                         self.visit_expression(location, expr, None, local_vars);
                     }
@@ -1895,7 +1921,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 }
                 // TODO: deal with in_list
                 self.visit_arguments(location, args, local_vars);
-                if let Some(ref expr) = in_list {
+                if let Some(expr) = in_list {
                     self.visit_expression(location, expr, None, local_vars);
                 }
 
@@ -1926,7 +1952,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
             },
             Term::Locate { args, in_list } => {
                 self.visit_arguments(location, args, local_vars);
-                if let Some(ref expr) = in_list {
+                if let Some(expr) = in_list {
                     self.visit_expression(location, expr, None, local_vars);
                 }
 
@@ -1938,7 +1964,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
             },
             Term::Pick(choices) => {
                 for (weight, choice) in choices.iter() {
-                    if let Some(ref weight) = weight {
+                    if let Some(weight) = weight {
                         self.visit_expression(location, weight, None, local_vars);
                     }
                     self.visit_expression(location, choice, None, local_vars);
