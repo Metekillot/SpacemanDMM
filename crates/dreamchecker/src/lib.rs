@@ -8,8 +8,14 @@ use dm::constants::{ConstFn, Constant};
 use dm::objtree::{ObjectTree, ProcRef, TypeRef};
 use dm::{Context, DMError, Location, Severity};
 
+use foldhash::{HashMap, HashMapExt, HashSet, HashSetExt};
+use ron::ser::PrettyConfig;
+use serde::ser::SerializeStruct;
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::{BTreeMap, VecDeque};
 use foldhash::{HashMap, HashMapExt, HashSet, HashSetExt};
+
+use serde::Serialize;
 
 mod type_expr;
 use type_expr::TypeExpr;
@@ -23,7 +29,7 @@ pub mod test_helpers;
 // Helper structures
 
 /// Analysis result for checking type safety
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum StaticType<'o> {
     None,
     Type(TypeRef<'o>),
@@ -356,6 +362,7 @@ fn run_inner(context: &Context, objtree: &ObjectTree, cli: bool) {
     cli_println!("============================================================");
     cli_println!("Analyzing proc call tree...\n");
     analyzer.check_proc_call_tree();
+    print!("{}", ron::ser::to_string_pretty(&analyzer, PrettyConfig::new()).unwrap());
 }
 
 // ----------------------------------------------------------------------------
@@ -558,6 +565,17 @@ pub struct AnalyzeObjectTree<'o> {
 
     sleeping_overrides: ViolatingOverrides<'o>,
     impure_overrides: ViolatingOverrides<'o>,
+}
+
+impl<'o> Serialize for AnalyzeObjectTree<'o> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+                let mut s = serializer.serialize_struct("AnalyzeObjectTree", 2)?;
+                s.serialize_field("return_type", &self.return_type)?;
+                s.serialize_field("call_tree", &self.call_tree)?;
+                s.end()
+    }
 }
 
 impl<'o> AnalyzeObjectTree<'o> {

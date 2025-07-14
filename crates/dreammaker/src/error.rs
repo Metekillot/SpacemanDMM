@@ -2,18 +2,28 @@
 
 use std::cell::{Ref, RefCell, RefMut};
 use foldhash::HashMap;
+use serde::ser::SerializeStruct;
 use std::path::{Path, PathBuf};
 use std::{error, fmt, io};
 
 use get_size::GetSize;
 use get_size_derive::GetSize;
 use termcolor::{Color, ColorSpec};
+use serde::{Serialize, Serializer};
 
 use crate::config::Config;
 
 /// An identifier referring to a loaded file.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FileId(u16);
+
+impl Serialize for FileId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer {
+        serializer.serialize_u16(self.0)
+    }
+}
 
 impl GetSize for FileId {}
 
@@ -283,6 +293,18 @@ pub struct Location {
     pub line: u32,
     /// The column number, starting at 1.
     pub column: u16,
+}
+
+impl Serialize for Location {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer {
+        let mut s = serializer.serialize_struct("Location", 3)?;
+        s.serialize_field("FileID", &self.file)?;
+        s.serialize_field("Line", &self.line)?;
+        s.serialize_field("Column", &self.column)?;
+        s.end()
+    }
 }
 
 impl Location {
