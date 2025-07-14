@@ -2,7 +2,7 @@
 //! DreamMaker.
 #![allow(dead_code, unused_variables)]
 
-extern crate dreammaker as dm;
+use dreammaker as dm;
 use dm::ast::*;
 use dm::constants::{ConstFn, Constant};
 use dm::objtree::{ObjectTree, ProcRef, TypeRef};
@@ -13,7 +13,6 @@ use ron::ser::PrettyConfig;
 use serde::ser::SerializeStruct;
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::{BTreeMap, VecDeque};
-use foldhash::{HashMap, HashMapExt, HashSet, HashSetExt};
 
 use serde::Serialize;
 
