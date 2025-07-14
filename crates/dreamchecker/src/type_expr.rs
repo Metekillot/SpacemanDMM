@@ -8,6 +8,8 @@ use dm::constants::Constant;
 use dm::objtree::{ObjectTree, ProcRef};
 use dm::{DMError, Location};
 
+use serde::{Serialize,Serializer};
+
 use crate::{Analysis, StaticType};
 
 pub struct TypeExprContext<'o, 't> {
@@ -28,7 +30,7 @@ impl<'o, 't> TypeExprContext<'o, 't> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum TypeExpr<'o> {
     // Static type literal (`null` => `None` included).
     Static(StaticType<'o>),

@@ -14,6 +14,8 @@ use get_size_derive::GetSize;
 use indexmap::IndexMap;
 use foldhash::fast::RandomState;
 use interval_tree::RangePairIter;
+use serde::ser::SerializeStruct;
+use serde::{Serialize, Serializer};
 
 use crate::heap_size_of_index_map;
 
@@ -229,6 +231,16 @@ pub fn subpath(path: &str, parent: &str) -> bool {
 pub struct TypeRef<'a> {
     tree: &'a ObjectTree,
     idx: NodeIndex,
+}
+
+impl<'a> Serialize for TypeRef<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer {
+        let mut s = serializer.serialize_struct("Type", 1)?;
+        s.serialize_field("type_path", &format!("{}", self))?;
+        s.end()
+    }
 }
 
 impl<'a> TypeRef<'a> {
@@ -535,6 +547,17 @@ pub struct ProcRef<'a> {
     list: &'a [ProcValue],
     name: &'a str,
     idx: usize,
+}
+
+impl<'a> Serialize for ProcRef<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+    S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("ProcRef", 1)?;
+        s.serialize_field("proc", &format!("{}", self))?;
+        s.end()
+    }
 }
 
 impl<'a> ProcRef<'a> {
