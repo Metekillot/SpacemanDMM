@@ -21,7 +21,7 @@ pub type SwitchCases = [(Spanned<Vec<Case>>, Block)];
 // Simple enums
 
 /// The unary operators, both prefix and postfix.
-#[derive(Copy, Clone, PartialEq, Eq, Debug, GetSize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, GetSize, Serialize)]
 pub enum UnaryOp {
     Neg,
     Not,
@@ -118,7 +118,7 @@ impl fmt::Display for PathOp {
 }
 
 /// The binary operators.
-#[derive(Copy, Clone, PartialEq, Eq, Debug, GetSize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, GetSize, Serialize)]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -181,7 +181,7 @@ impl fmt::Display for BinaryOp {
 }
 
 /// The assignment operators, including augmented assignment.
-#[derive(Copy, Clone, PartialEq, Eq, Debug, GetSize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, GetSize, Serialize)]
 pub enum AssignOp {
     Assign,
     AddAssign,
@@ -269,7 +269,7 @@ pub enum TernaryOp {
 }
 
 /// The possible kinds of access operators for lists
-#[derive(Debug, Copy, Clone, Eq, PartialEq, GetSize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, GetSize, Serialize)]
 pub enum ListAccessKind {
     /// `[]`
     Normal,
@@ -278,7 +278,7 @@ pub enum ListAccessKind {
 }
 
 /// The possible kinds of index operators, for both fields and methods.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, GetSize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, GetSize, Serialize)]
 pub enum PropertyAccessKind {
     /// `a.b`
     Dot,
@@ -513,7 +513,7 @@ macro_rules! type_table {
 
 type_table! {
     /// A type specifier for verb arguments and input() calls.
-    #[derive(GetSize)]
+    #[derive(GetSize, Serialize)]
     pub struct InputType;
 
     // These values can be known with an invocation such as:
@@ -690,7 +690,7 @@ pub type Ident = String;
 // Ident2 is an opaque type which promises a limited interface.
 // It's a `Box<str>` for now (smaller than `Ident` by 8 bytes),
 // but could be replaced by interning later.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Serialize)]
 pub struct Ident2 {
     inner: Box<str>,
 }
@@ -751,7 +751,7 @@ impl GetSize for Ident2 {
 }
 
 /// An AST element with an additional location attached.
-#[derive(Copy, Clone, Eq, Debug, GetSize)]
+#[derive(Copy, Clone, Eq, Debug, GetSize, Serialize)]
 pub struct Spanned<T> {
     // TODO: add a Span type and use it here
     pub location: Location,
@@ -803,7 +803,7 @@ impl<'a> fmt::Display for FormatTypePath<'a> {
 // Terms and Expressions
 
 /// A typepath optionally followed by a set of variables.
-#[derive(Clone, PartialEq, Debug, GetSize)]
+#[derive(Clone, PartialEq, Debug, GetSize, Serialize)]
 pub struct Prefab {
     pub path: TypePath,
     pub vars: Box<[(Ident2, Expression)]>,
@@ -841,7 +841,7 @@ where
 }
 
 /// The structure of an expression, a tree of terms and operators.
-#[derive(Clone, PartialEq, Debug, GetSize)]
+#[derive(Clone, PartialEq, Debug, GetSize, Serialize)]
 pub enum Expression {
     /// An expression containing a term directly. The term is evaluated first,
     /// then its follows, then its unary operators in reverse order.
@@ -1001,7 +1001,7 @@ impl From<Term> for Expression {
 
 /// The structure of a term, the basic building block of the AST.
 #[allow(non_camel_case_types)]
-#[derive(Clone, PartialEq, Debug, GetSize)]
+#[derive(Clone, PartialEq, Debug, GetSize, Serialize)]
 pub enum Term {
     // Terms with no recursive contents ---------------------------------------
     /// The literal `null`.
@@ -1184,14 +1184,14 @@ impl From<Expression> for Term {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, GetSize)]
+#[derive(Clone, PartialEq, Debug, GetSize, Serialize)]
 pub struct MiniExpr {
     pub ident: Ident2,
     pub fields: Box<[Field]>,
 }
 
 /// An expression part which is applied to a term or another follow.
-#[derive(Debug, Clone, PartialEq, GetSize)]
+#[derive(Debug, Clone, PartialEq, GetSize, Serialize)]
 pub enum Follow {
     /// Index the value by an expression.
     Index(ListAccessKind, Box<Expression>),
@@ -1225,7 +1225,7 @@ impl Follow {
 }
 
 /// Like a `Follow` but only supports field accesses.
-#[derive(Debug, Clone, PartialEq, GetSize)]
+#[derive(Debug, Clone, PartialEq, GetSize, Serialize)]
 pub struct Field {
     pub kind: PropertyAccessKind,
     pub ident: Ident2,

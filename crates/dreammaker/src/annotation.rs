@@ -50,6 +50,25 @@ pub enum Annotation {
 
     ProcArguments(Vec<Ident>, String, usize),  // Vec empty for unscoped call
     ProcArgument(usize),  // where in the prog arguments we are
+    ReturnStatement(Option<Expression>),
+    ReturnCurrent,
+    ReturnExpression{ returned_expression: Expression },
+}
+
+impl Annotation {
+    fn inserted(self) -> Annotation {
+        match self {
+            Self::ReturnStatement(returned_value) => {
+                match returned_value {
+                    Some(returning_expression) => {
+                        Self::ReturnExpression{ returned_expression: returning_expression.clone() }
+                    },
+                    None => Self::ReturnCurrent,
+                }
+            },
+            _ => self,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -69,7 +88,7 @@ impl Default for AnnotationTree {
 
 impl AnnotationTree {
     pub fn insert(&mut self, place: std::ops::Range<Location>, value: Annotation) {
-        self.tree.insert(range(place.start, place.end.pred()), value);
+        self.tree.insert(range(place.start, place.end.pred()), value.inserted());
         self.len += 1;
     }
 
