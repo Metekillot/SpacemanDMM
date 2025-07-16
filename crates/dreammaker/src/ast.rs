@@ -96,7 +96,7 @@ impl Serialize for PathOp {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer {
-        let mut s = serializer.serialize_str(self.name());
+        let s = serializer.serialize_str(self.name());
         s
     }
 }

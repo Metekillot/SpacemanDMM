@@ -686,7 +686,7 @@ impl ObjectTree {
     // ------------------------------------------------------------------------
     // Access
 
-    pub fn node_indices(&self) -> impl Iterator<Item=NodeIndex> {
+    pub fn node_indices(&self) -> impl Iterator<Item=NodeIndex> + use<> {
         (0..self.graph.len()).map(NodeIndex::new)
     }
 
@@ -919,7 +919,7 @@ impl ObjectTreeBuilder {
                             Ok(Constant::String(s)) => {
                                 parent_type = s;
                             }
-                            Ok(Constant::Prefab(ref pop)) if pop.vars.is_empty() => {
+                            Ok(Constant::Prefab(pop)) if pop.vars.is_empty() => {
                                 parent_type_buf = String::new();
                                 for piece in pop.path.iter() {
                                     parent_type_buf.push('/');

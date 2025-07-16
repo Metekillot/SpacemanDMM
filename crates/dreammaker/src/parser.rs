@@ -1606,7 +1606,7 @@ impl<'ctx, 'an, 'inp> Parser<'ctx, 'an, 'inp> {
 
             // check for a label `ident:`
             if let Statement::Expr(ref expr) = result {
-                if let Some(Term::Ident(ref name)) = expr.as_term() {
+                if let Some(Term::Ident(name)) = expr.as_term() {
                     if let Some(()) = self.exact(Token::Punct(Punctuation::Colon))? {
                         // it's a label! check for a block
                         return spanned(Statement::Label {
@@ -2068,7 +2068,7 @@ impl<'ctx, 'an, 'inp> Parser<'ctx, 'an, 'inp> {
         self.expected("proc call");
         let term = take_match!(self {
             // term :: 'new' (prefab | (ident field*))? arglist?
-            Token::Ident(ref i, _) if i == "new" => {
+            Token::Ident(i, _) if i == "new" => {
                 // It's not entirely clear what is supposed to be valid here.
                 // Some things definitely are:
                 //   * new()
@@ -2130,24 +2130,24 @@ impl<'ctx, 'an, 'inp> Parser<'ctx, 'an, 'inp> {
             // TODO: list arguments are actually subtly different, but
             // we're going to pretend they're not to make code simpler, and
             // anyone relying on the difference needs to fix their garbage
-            Token::Ident(ref i, _) if i == "list" => match self.arguments(&[], "list")? {
+            Token::Ident(i, _) if i == "list" => match self.arguments(&[], "list")? {
                 Some(args) => Term::List(args),
                 None => Term::Ident(i.to_owned()),
             },
 
-            Token::Ident(ref i, _) if i == "alist" => match self.arguments(&[], "alist")? {
+            Token::Ident(i, _) if i == "alist" => match self.arguments(&[], "alist")? {
                 Some(args) => Term::List(args),
                 None => Term::Ident(i.to_owned()),
             },
 
             // term :: 'call' arglist arglist
-            Token::Ident(ref i, _) if i == "call" => Term::DynamicCall(
+            Token::Ident(i, _) if i == "call" => Term::DynamicCall(
                 require!(self.arguments(&[], "call")),
                 require!(self.arguments(&[], "call*")),
             ),
 
             // term :: 'call_ext' ([library,] function) arglist
-            Token::Ident(ref i, _) if i == "call_ext" => {
+            Token::Ident(i, _) if i == "call_ext" => {
                 require!(self.exact(Token::Punct(Punctuation::LParen)));
                 let first = require!(self.expression());
                 let second = if self.exact(Token::Punct(Punctuation::Comma))?.is_some() {
@@ -2175,7 +2175,7 @@ impl<'ctx, 'an, 'inp> Parser<'ctx, 'an, 'inp> {
             },
 
             // term :: 'input' arglist input_specifier
-            Token::Ident(ref i, _) if i == "input" => match self.arguments(&[], "input")? {
+            Token::Ident(i, _) if i == "input" => match self.arguments(&[], "input")? {
                 Some(args) => {
                     let (input_type, in_list) = require!(self.input_specifier());
                     Term::Input {
@@ -2188,7 +2188,7 @@ impl<'ctx, 'an, 'inp> Parser<'ctx, 'an, 'inp> {
             },
 
             // term :: 'locate' arglist ('in' expression)?
-            Token::Ident(ref i, _) if i == "locate" => match self.arguments(&[], "locate")? {
+            Token::Ident(i, _) if i == "locate" => match self.arguments(&[], "locate")? {
                 Some(args) => {
                     // warn against this mistake
                     if let Some(&Expression::BinaryOp { op: BinaryOp::In, .. } ) = args.first() {
@@ -2214,34 +2214,34 @@ impl<'ctx, 'an, 'inp> Parser<'ctx, 'an, 'inp> {
             },
 
             // term :: 'pick' pick_arglist
-            Token::Ident(ref i, _) if i == "pick" => match self.pick_arguments()? {
+            Token::Ident(i, _) if i == "pick" => match self.pick_arguments()? {
                 Some(args) => Term::Pick(args),
                 None => Term::Ident(i.to_owned()),
             },
 
-            Token::Ident(ref i, _) if i == "null" => Term::Null,
+            Token::Ident(i, _) if i == "null" => Term::Null,
 
             // term :: 'as' '(' input_type ')'
-            Token::Ident(ref i, _) if i == "as" => {
+            Token::Ident(i, _) if i == "as" => {
                 require!(self.exact(Token::Punct(Punctuation::LParen)));
                 let input_type = self.input_type()?.unwrap_or_else(InputType::empty);
                 require!(self.exact(Token::Punct(Punctuation::RParen)));
                 Term::As(input_type)
             },
             // term :: __PROC__
-            Token::Ident(ref i, _) if i == "__PROC__" => {
+            Token::Ident(i, _) if i == "__PROC__" => {
                 // We cannot replace with the proc path yet, you don't need one it's fine
                 Term::__PROC__
             },
 
             // term :: __TYPE__
-            Token::Ident(ref i, _) if i == "__TYPE__" => {
+            Token::Ident(i, _) if i == "__TYPE__" => {
                 // We cannot replace with the typepath yet, so we'll hand back a term we can parse later
                 Term::__TYPE__
             },
 
             // term :: __IMPLIED_TYPE__
-            Token::Ident(ref i, _) if i == "__IMPLIED_TYPE__" => {
+            Token::Ident(i, _) if i == "__IMPLIED_TYPE__" => {
                 // We cannot replace with the typepath yet, so we'll hand back a term we can parse later
                 Term::__IMPLIED_TYPE__
             },

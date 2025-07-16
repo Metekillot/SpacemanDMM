@@ -236,8 +236,8 @@ impl Constant {
 
     pub fn eq_resource(&self, resource: &str) -> bool {
         match self {
-            Constant::String(ref s) |
-            Constant::Resource(ref s) => &**s == resource,
+            Constant::String(s) |
+            Constant::Resource(s) => s == resource,
             _ => false,
         }
     }
@@ -308,8 +308,8 @@ impl From<bool> for Constant {
 impl PartialEq<str> for Constant {
     fn eq(&self, other: &str) -> bool {
         match self {
-            Constant::String(ref s) |
-            Constant::Resource(ref s) => &**s == other,
+            Constant::String(s) |
+            Constant::Resource(s) => s == other,
             _ => false,
         }
     }
@@ -805,7 +805,7 @@ impl<'a> ConstantFolder<'a> {
                         return Err(self.error(format!("malformed defined() call, must have 1 argument and instead has {}", args.len())));
                     }
                     match args[0].as_term() {
-                        Some(Term::Ident(ref ident)) => Constant::from(defines.contains_key(ident)),
+                        Some(Term::Ident(ident)) => Constant::from(defines.contains_key(ident)),
                         _ => return Err(self.error("malformed defined() call, argument given isn't an Ident.")),
                     }
                 }
