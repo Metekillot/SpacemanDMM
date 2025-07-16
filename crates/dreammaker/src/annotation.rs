@@ -12,7 +12,7 @@ use super::Location;
 
 pub type Iter<'a> = RangePairIter<'a, Location, Annotation>;
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub enum Annotation {
     // contextual information
     TreeBlock(Vec<Ident>),
@@ -50,22 +50,22 @@ pub enum Annotation {
 
     ProcArguments(Vec<Ident>, String, usize),  // Vec empty for unscoped call
     ProcArgument(usize),  // where in the prog arguments we are
-    ReturnStatement(Option<Expression>),
-    ReturnCurrent,
-    ReturnExpression{ returned_expression: Expression },
+    ReturnOperation(std::ops::Range<Location>),
+    ReturnStatement{ returned_value: Vec<Annotation> },
 }
 
+
 impl Annotation {
-    fn inserted(self) -> Annotation {
+    fn resolved(self, annotation_tree: &AnnotationTree) -> Annotation {
         match self {
-            Self::ReturnStatement(returned_value) => {
-                match returned_value {
-                    Some(returning_expression) => {
-                        Self::ReturnExpression{ returned_expression: returning_expression.clone() }
-                    },
-                    None => Self::ReturnCurrent,
-                }
-            },
+            Self::ReturnOperation(range) => {
+                let annotations_checked =
+                    annotation_tree
+                    .get_range(range)
+                    .into_iter().map(|iter| iter.1.to_owned())
+                    .collect::<Vec<_>>();
+            Self::ReturnStatement{ returned_value: annotations_checked }
+        },
             _ => self,
         }
     }
@@ -88,7 +88,7 @@ impl Default for AnnotationTree {
 
 impl AnnotationTree {
     pub fn insert(&mut self, place: std::ops::Range<Location>, value: Annotation) {
-        self.tree.insert(range(place.start, place.end.pred()), value.inserted());
+        self.tree.insert(range(place.start, place.end.pred()), value);
         self.len += 1;
     }
 

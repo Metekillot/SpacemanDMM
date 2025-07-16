@@ -1268,7 +1268,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
 
     fn visit_block(&mut self, block: &'o [Spanned<Statement>], local_vars: &mut HashMap<String, LocalVar<'o>>, mut setting_allowed : bool, annotate_to: Option<&RefCell<AnnotationTree>>) -> ControlFlow {
         let mut term = ControlFlow::allfalse();
-        for stmt in block.iter() {
+        for stmt in block.iter().peekable() {
             if term.terminates() {
                 error(stmt.location,"possible unreachable code here")
                     .with_errortype("unreachable_code")
