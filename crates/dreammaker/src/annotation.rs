@@ -1,6 +1,7 @@
 //! Data structures for the parser to output mappings from input ranges to AST
 //! elements at those positions.
 
+use std::cell::RefMut;
 use std::rc::Rc;
 
 use crate::docs::DocCollection;
@@ -50,23 +51,19 @@ pub enum Annotation {
 
     ProcArguments(Vec<Ident>, String, usize),  // Vec empty for unscoped call
     ProcArgument(usize),  // where in the prog arguments we are
-    ReturnOperation(std::ops::Range<Location>),
-    ReturnStatement{ returned_value: Vec<Annotation> },
+    ReturnOperation{operation_range: std::ops::Range<Location>},
+    ReturnParameters{ values: Vec<Annotation> },
 }
 
 
 impl Annotation {
-    fn resolved(self, annotation_tree: &AnnotationTree) -> Annotation {
+    pub fn resolved(&self, mut annotation_tree: RefMut<'_, AnnotationTree>) {
         match self {
-            Self::ReturnOperation(range) => {
-                let annotations_checked =
-                    annotation_tree
-                    .get_range(range)
-                    .into_iter().map(|iter| iter.1.to_owned())
-                    .collect::<Vec<_>>();
-            Self::ReturnStatement{ returned_value: annotations_checked }
-        },
-            _ => self,
+            Self::ReturnOperation { operation_range } => {
+                let params = annotation_tree.get_range(operation_range.to_owned()).map(|pair|pair.1).collect::<Vec<_>>();
+                annotation_tree.insert(operation_range, )
+            },
+            _ => {},
         }
     }
 }

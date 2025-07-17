@@ -2,7 +2,7 @@
 //! DreamMaker.
 #![allow(dead_code, unused_variables)]
 
-use dm::ast::*;
+use dm::{annotation, ast::*};
 use dm::constants::{ConstFn, Constant};
 use dm::objtree::{ObjectTree, ProcRef, TypeRef};
 use dm::{Context, DMError, Location, Severity};
@@ -14,6 +14,7 @@ use serde::ser::SerializeStruct;
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::{BTreeMap, VecDeque};
 use std::io::Write;
+use std::ops::Range;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -1361,6 +1362,17 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                     error(location, "returning a value in a spawn has no effect")
                         .set_severity(Severity::Warning)
                         .register(self.context);
+                }
+                match annotate_to {
+                    Some(ref_cell) => {
+                        let mut annotation_tree = ref_cell.borrow();
+                        let gathered_annotations = (*annotation_tree).get_location(location).map(|pair|pair.1).collect::<Vec<_>>();
+                        for annotation in gathered_annotations {
+                            let annotation_tree_2 = ref_cell.borrow_mut();
+                            annotation.resolved(annotation_tree_2);
+                        }
+                    }
+                    None => {},
                 }
                 let return_type = self.visit_expression(location, expr, None, local_vars);
                 local_vars.get_mut(".").unwrap().analysis = return_type;
