@@ -39,6 +39,7 @@ pub enum StaticType<'o> {
         list: TypeRef<'o>,
         keys: Box<StaticType<'o>>,
     },
+    Proc,
 }
 
 impl<'o> StaticType<'o> {
@@ -51,6 +52,7 @@ impl<'o> StaticType<'o> {
             StaticType::None => None,
             StaticType::Type(t) => Some(t),
             StaticType::List { list, .. } => Some(list),
+            StaticType::Proc => None,
         }
     }
 
@@ -82,6 +84,7 @@ impl<'o> StaticType<'o> {
             StaticType::None => false,
             StaticType::Type(ty) => ty.path == "/list",
             StaticType::List { .. } => true,
+            StaticType::Proc => false,
         }
     }
 }
@@ -180,7 +183,7 @@ impl<'o> AssumptionSet<'o> {
         assumption_set![Assumption::Truthy(true), Assumption::IsNull(false), Assumption::IsType(true, ty)]
     }
 
-    fn conflicts_with(&self, new: &Assumption) -> Option<&Assumption> {
+    fn conflicts_with(&self, new: &Assumption) -> Option<&Assumption<'_>> {
         self.set.iter().find(|&each| each.oneway_conflict(new) || new.oneway_conflict(each))
     }
 }
@@ -1476,7 +1479,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                         }
                         StaticType::List { .. } => {/* OK */}
                         StaticType::Type(ty) => {
-                            if ty != self.objtree.expect("/world") && ty != self.objtree.expect("/list") {
+                            if ty != self.objtree.expect("/world") && ty != self.objtree.expect("/list") && ty != self.objtree.expect("/alist") {
                                 let atom = self.objtree.expect("/atom");
                                 if ty.is_subtype_of(&atom) {
                                     // Fine.
@@ -1493,6 +1496,10 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                                         .register(self.context);
                                 }
                             }
+                        }
+                        StaticType::Proc => {
+                            error(location, "iterating over a procpath which cannot be iterated".to_string())
+                                .register(self.context);
                         }
                     }
                 }
@@ -1618,6 +1625,59 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
             Statement::Goto(_) => {},
             Statement::Label { name: _, block } => { self.visit_block(block, &mut local_vars.clone(), false, annotate_to); },
             Statement::Del(expr) => { self.visit_expression(location, expr, None, local_vars); },
+            Statement::ForKeyValue(for_key_value) => {
+                let ForKeyValueStatement { var_type, key, value, in_list, block } = &**for_key_value;
+                let mut scoped_locals = local_vars.clone();
+                if let Some(in_list) = in_list {
+                    let list = self.visit_expression(location, in_list, None, &mut scoped_locals);
+                    match list.static_ty {
+                        StaticType::None => {
+                            // Occurs extremely often due to DM not complaining about this, with
+                            // over 800 detections on /tg/. Maybe a future lint.
+                        }
+                        StaticType::List { .. } => {/* OK */}
+                        StaticType::Type(ty) => {
+                            if ty != self.objtree.expect("/world") && ty != self.objtree.expect("/list") && ty != self.objtree.expect("/alist") {
+                                let atom = self.objtree.expect("/atom");
+                                if ty.is_subtype_of(&atom) {
+                                    // Fine.
+                                } else if atom.is_subtype_of(&ty) {
+                                    // Iffy conceptually, but the only detections on /tg/ are false positives in the
+                                    // component system, where we loop over `var/datum/parent` that is known to be an
+                                    // atom in a way that's hard for Dreamchecker to capture.
+                                    error(location, "iterating over a /datum which might not be an /atom")
+                                        .set_severity(Severity::Hint)
+                                        .register(self.context);
+                                } else {
+                                    // The type is a /datum/foo subtype that definitely can't be looped over.
+                                    error(location, format!("iterating over a {} which cannot be iterated", ty.path))
+                                        .register(self.context);
+                                }
+                            }
+                        }
+                        StaticType::Proc => {
+                            error(location, "iterating over a procpath which cannot be iterated".to_string())
+                                .register(self.context);
+                        }
+                    }
+                }
+                // This quite ugly but DM doesn't let you do for (var/k, var/v)
+                // only the type of the key is taken into account
+                if let Some(var_type) = var_type {
+                    self.visit_var(location, var_type, key, None, &mut scoped_locals);
+                }
+                // the "v" in a DM for (var/k, v) statement is essentially typeless.
+                // There is currently no way to change that.
+                let var_type_value = VarType {
+                    flags: VarTypeFlags::default(),
+                    type_path: Box::new([]),
+                    input_type: InputType::default(),
+                };
+                self.visit_var(location, &var_type_value, value, None, &mut scoped_locals);
+                let mut state = self.visit_block(block, &mut scoped_locals, false);
+                state.end_loop();
+                return state
+            }
         }
         ControlFlow::allfalse()
     }
@@ -2092,8 +2152,21 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                 }
             },
             Follow::Field(kind, name) => {
-                if let Some(ty) = lhs.static_ty.basic_type() {
-                    if let Some(decl) = ty.get_var_declaration(name) {
+                if let StaticType::Proc = lhs.static_ty {
+                    match name.as_str() {
+                        "type" | "name" | "desc" | "category" | "invisibility" => {},
+                        _ => {
+                            error(location, format!("undefined field: {name:?} on procpath"))
+                                .register(self.context);
+                        }
+                    }
+                    Analysis::empty()
+                } else if let Some(ty) = lhs.static_ty.basic_type() {
+                    if ty.path == "/callee" && name == "proc" {
+                        // Special cased for now because this might be the only place it appears?
+                        // Or maybe we should also handle new procpath() returning a procpath.
+                        Analysis::from(StaticType::Proc)
+                    } else if let Some(decl) = ty.get_var_declaration(name) {
                         if ty != self.ty && decl.var_type.flags.is_private() {
                             error(location, format!("field {name:?} on {ty} is declared as private"))
                                 .with_errortype("private_var")
@@ -2272,6 +2345,9 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
             StaticType::List { list, .. } => {
                 typeerror = "list";
             },
+            StaticType::Proc => {
+                return Analysis::empty()
+            }
         };
         error(location, format!("Attempting {operator} on a {typeerror} which does not overload {operator}"))
             .register(self.context);

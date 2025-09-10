@@ -8,8 +8,8 @@ use super::objtree::*;
 use super::preprocessor::{Define, DefineMap};
 use super::Location;
 
-const DM_VERSION: i32 = 515;
-const DM_BUILD: i32 = 1619;
+const DM_VERSION: i32 = 516;
+const DM_BUILD: i32 = 1666;
 
 /// Register BYOND builtin macros to the given define map.
 pub fn default_defines(defines: &mut DefineMap) {
@@ -1269,9 +1269,9 @@ pub fn register_builtins(tree: &mut ObjectTreeBuilder) {
         pixloc/var/atom/loc;
         pixloc/var/step_x;
         pixloc/var/step_y;
-        pixloc/x;
-        pixloc/y;
-        pixloc/z;
+        pixloc/var/x;
+        pixloc/var/y;
+        pixloc/var/z;
 
         proc/vector(x, y, z);
 

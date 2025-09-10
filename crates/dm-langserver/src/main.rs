@@ -683,7 +683,7 @@ impl Engine {
         })
     }
 
-    fn find_type_context<'b, I, Ign>(&self, iter: &I) -> (Option<TypeRef>, Option<(&'b str, usize)>)
+    fn find_type_context<'b, I, Ign>(&self, iter: &I) -> (Option<TypeRef<'_>>, Option<(&'b str, usize)>)
     where
         I: Iterator<Item = (Ign, &'b Annotation)> + Clone,
     {
@@ -783,6 +783,8 @@ impl Engine {
             // nothing
         } else if first == "usr" {
             next = self.objtree.find("/mob");
+        } else if first == "caller" || first == "callee" {
+            next = self.objtree.find("/callee");
         } else {
             next = match self.find_unscoped_var(iter, next, proc_name, first) {
                 UnscopedVar::Parameter { param, .. } => self.objtree.type_by_path(param.var_type.type_path.iter()),
